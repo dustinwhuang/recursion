@@ -4,46 +4,95 @@
 // but you're not, so you'll write it from scratch:
 var parseJSON = function(json) {
   // your code goes here
-  console.log('json = ', json);
+  // Remove whitespace
+  json = json.replace(/[\r\n\t]+/g, '').trim();
 
-  if (json[0] === '[' && json[json.length-1] === ']') {
+  if (json[0] === '[') {
+    if (json[json.length-1] !== ']')
+      throw new SyntaxError('Unexpected end of JSON input');
     var retArr = [];
-    var str = json.slice(1, -1).split(/,\s*(?=(?:(?:[^"]*"){2})*[^"]*$)(?=[^\]]*(?:\[|$))(?=[^\}]*(?:\{|$))/).filter(function (item) {return item !== ''});
-    console.log('str = ', str);
+    var str = splitJSON(json.slice(1, -1), ',');
+
     retArr = str.map(function (item) {
       return parseJSON(item);
     })
     return retArr;
   }
 
-  if (json[0] === '{' && json[json.length-1] === '}') {
+  if (json[0] === '{') {
+    if (json[json.length-1] !== '}')
+      throw new SyntaxError('Unexpected end of JSON input');
     var retObj = {};
-    var str = json.slice(1, -1).split(/,\s*(?=(?:(?:[^"]*"){2})*[^"]*$)(?=[^\]]*(?:\[|$))(?=[^\}]*(?:\{|$))/).filter(function (item) {return item !== ''});
-    console.log('str = ', str);
+
+    var str = splitJSON(json.slice(1, -1), ',');
+
     str = str.map(function (item) {
-      var arr = item.split(/:\s*(?=[^\}]*(?:\{|$))(?=[^\]]*(?:\[|$))/);
-      console.log('arr = ', arr);
+      var arr = splitJSON(item, ':');
       return retObj[parseJSON(arr[0])] = parseJSON(arr[1]);
     });
-    // if (str.length > 1)
-    //   retObj[parseJSON(str[0])] = parseJSON(str[1]);
 
     return  retObj;
   }
 
   if (json[0] === '"' && json[json.length-1] === '"') {
-    //console.log('unescape = ', json.slice(1, -1).replace(/\\\\["]/g, '$&'));
-    return json.slice(1, -1);
+    return json.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, '\\');
   }
 
-  if (/true\s*/.test(json))
+  if (json === 'true')
     return true;
-  if (/false\s*/.test(json))
+  if (json === 'false')
     return false;
-  if (/null\s*/.test(json))
+  if (json === 'null')
     return null;
-  if (/^[-+]?[0-9]*\.?[0-9]+$/.test(json))
+  if (/^[-+]?[0-9]*[.]?[0-9]+$/.test(json))
     return parseFloat(json);
 
-  // throw new SyntaxError();
+};
+
+var splitJSON = function(sliced, char) {
+  var str = [];
+  var square = 0;
+  var curly = 0;
+  var quote = 0;
+  var start = 0;
+
+  for (var i = 0; i < sliced.length; i++) {
+    switch (sliced[i]) {
+      case '{':
+        curly++;
+        break;
+      case '}':
+        curly--;
+        if (curly < 0) {
+          throw new SyntaxError('Unexpected end of JSON input');
+        }
+        break;
+      case '[':
+        square++;
+        break;
+      case ']':
+        square--;
+        if (square < 0) {
+          throw new SyntaxError('Unexpected end of JSON input');
+        }
+        break;
+      case '"':
+        if (sliced[i-1] !== '\\')
+          quote++;
+        break;
+      case char:
+        if (curly === 0 && square === 0 && quote % 2 === 0) {
+          str.push(sliced.slice(start, i).trim());
+          start = i + 1;
+        }
+        break;
+    }
+  }
+  if (quote % 2 !== 0)
+    throw new SyntaxError('Unexpected end of JSON input');
+
+  if (start !== sliced.length)
+    str.push(sliced.slice(start, sliced.length).trim());
+
+  return str;
 };
